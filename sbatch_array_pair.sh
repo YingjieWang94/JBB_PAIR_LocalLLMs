@@ -19,7 +19,21 @@ set -euo pipefail
 module purge
 module load cuda/12.8.0 || true
 
-cd /path/to/JBB_PAIR_LocalLLMs
+# --- Python/Conda environment (customize as needed) ---
+export PYTHONUNBUFFERED=1
+# If conda is available, activate an env (set ENV_NAME or ENV_PATH before sbatch)
+if command -v conda >/dev/null 2>&1; then
+  source "$(conda info --base)/etc/profile.d/conda.sh" || true
+  if [ -n "${ENV_PATH:-}" ]; then
+    conda activate "$ENV_PATH" || true
+  else
+    conda activate "${ENV_NAME:-jbb_pair}" || true
+  fi
+fi
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$REPO_DIR"
+export PYTHONPATH="$REPO_DIR:${PYTHONPATH:-}"
 
 # Sharding parameters
 SHARD_IDX=${SLURM_ARRAY_TASK_ID}
@@ -27,7 +41,7 @@ NUM_SHARDS=${SLURM_ARRAY_TASK_COUNT}
 
 echo "Node: $(hostname)"
 echo "Shard: ${SHARD_IDX}/${NUM_SHARDS}"
-nvidia-smi
+nvidia-smi || true
 
 python scripts/run.py \
   --profile server \
