@@ -38,6 +38,9 @@ export HF_HOME="$HOME/.cache/huggingface"
 export HF_HUB_CACHE="$HF_HOME/hub"
 export TRANSFORMERS_CACHE="$HF_HOME/hub"
 
+python -c "import os; print('HF_HOME=', os.environ.get('HF_HOME'));"
+python -c "from huggingface_hub import whoami; print('whoami:', whoami()['name'])"
+
 
 python -c "import sys; print('sys.path[0:3]=', sys.path[0:3])"
 python -m py_compile scripts/run.py src/judges/llama3.py
@@ -51,7 +54,11 @@ python -u scripts/run.py \
   --device cuda \
   --guard-device cuda \
   --use-cache true \
-  --log-every 1
+  --log-every 1 \
+  --target_model_id meta-llama/Meta-Llama-3-8B-Instruct \
+  --attacker_model_id meta-llama/Meta-Llama-3-8B-Instruct \
+  --guard_model_id meta-llama/Llama-Guard-3-8B
+
 
 echo "Generated files:"
 ls -lh data/generated | tail -n 50
