@@ -41,6 +41,16 @@ echo "Node: $(hostname)"
 echo "Job:  ${SLURM_JOB_ID}  ArrayTask: ${SLURM_ARRAY_TASK_ID}"
 nvidia-smi || true
 
+unset HF_TOKEN
+unset HUGGINGFACEHUB_API_TOKEN
+unset HUGGINGFACE_HUB_TOKEN
+
+
+export HF_HOME="$HOME/.cache/huggingface"
+export HF_HUB_CACHE="$HF_HOME/hub"
+export TRANSFORMERS_CACHE="$HF_HOME/hub"
+
+
 # Optional: quick dep check (keeps failures obvious)
 python -c "import orjson, torch; print('deps ok; cuda:', torch.cuda.is_available())"
 
