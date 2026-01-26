@@ -34,8 +34,11 @@ echo "Submit dir: ${SLURM_SUBMIT_DIR:-N/A}"
 python -V
 which python
 nvidia-smi || true
+
+
 unset HF_TOKEN
 unset HUGGINGFACEHUB_API_TOKEN
+unset HUGGINGFACE_HUB_TOKEN
 
 
 export HF_HOME="$HOME/.cache/huggingface"
