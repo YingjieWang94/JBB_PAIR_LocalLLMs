@@ -43,6 +43,16 @@ echo "Node: $(hostname)"
 echo "Shard: ${SHARD_IDX}/${NUM_SHARDS}"
 nvidia-smi || true
 
+unset HF_TOKEN
+unset HUGGINGFACEHUB_API_TOKEN
+unset HUGGINGFACE_HUB_TOKEN
+
+
+export HF_HOME="$HOME/.cache/huggingface"
+export HF_HUB_CACHE="$HF_HOME/hub"
+export TRANSFORMERS_CACHE="$HF_HOME/hub"
+
+
 python scripts/run.py \
   --profile server \
   --subset harmful \
