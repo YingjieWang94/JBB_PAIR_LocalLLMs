@@ -34,6 +34,10 @@ echo "Submit dir: ${SLURM_SUBMIT_DIR:-N/A}"
 python -V
 which python
 nvidia-smi || true
+export HF_HOME="$HOME/.cache/huggingface"
+export HF_HUB_CACHE="$HF_HOME/hub"
+export TRANSFORMERS_CACHE="$HF_HOME/hub"
+
 
 python -c "import sys; print('sys.path[0:3]=', sys.path[0:3])"
 python -m py_compile scripts/run.py src/judges/llama3.py
