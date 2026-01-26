@@ -41,14 +41,16 @@ echo "Node: $(hostname)"
 echo "Job:  ${SLURM_JOB_ID}  ArrayTask: ${SLURM_ARRAY_TASK_ID}"
 nvidia-smi || true
 
+# Kill any cluster-injected/poisoned tokens
 unset HF_TOKEN
 unset HUGGINGFACEHUB_API_TOKEN
 unset HUGGINGFACE_HUB_TOKEN
 
-
-export HF_HOME="$HOME/.cache/huggingface"
+# Use the SAME HF_HOME as your interactive environment
+export HF_HOME="/users/yjwang/work/jbb_pair/hf_cache"
 export HF_HUB_CACHE="$HF_HOME/hub"
 export TRANSFORMERS_CACHE="$HF_HOME/hub"
+
 
 
 # Optional: quick dep check (keeps failures obvious)
