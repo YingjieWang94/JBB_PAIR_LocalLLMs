@@ -18,7 +18,8 @@ export HF_DATASETS_CACHE=$HOME/work/jbb_pair/datasets
 export WANDB_DIR=$HOME/work/jbb_pair/wandb_cache
 mkdir -p "$HF_HOME" "$HF_DATASETS_CACHE" "$WANDB_DIR"
 
-cd /users/$USER/repos/JBB_PAIR_LocalLLMs
+REPO_DIR="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+cd "$REPO_DIR"
+export PYTHONPATH="$REPO_DIR:${PYTHONPATH:-}"
 
-# Example: run your generation entrypoint (adjust to your repo)
 python -u scripts/run.py "$@"
