@@ -16,17 +16,26 @@ set -x
 module purge
 module load cuda/12.8.0 || true
 
-cd "$SLURM_SUBMIT_DIR"
+REPO_DIR="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+cd "$REPO_DIR"
 
 # Ensure HF token is present for gated Meta repos
 if [ -f "$HOME/.hf_env" ]; then
   source "$HOME/.hf_env"
 fi
-export PYTHONUNBUFFERED=1
-export PYTHONPATH="$SLURM_SUBMIT_DIR:${PYTHONPATH:-}"
 
-source /opt/apps/pkg/tools/miniforge3/25.3.0_python3.12.10/etc/profile.d/conda.sh
-conda activate /users/yjwang/.conda/envs/jbb_pair
+export PYTHONUNBUFFERED=1
+export PYTHONPATH="$REPO_DIR:${PYTHONPATH:-}"
+
+# Conda (portable)
+if command -v conda >/dev/null 2>&1; then
+  source "$(conda info --base)/etc/profile.d/conda.sh"
+  if [ -n "${ENV_PATH:-}" ]; then
+    conda activate "$ENV_PATH"
+  else
+    conda activate "${ENV_NAME:-jbb_pair}"
+  fi
+fi
 
 echo "Node: $(hostname)"
 echo "Job:  ${SLURM_JOB_ID}  ArrayTask: ${SLURM_ARRAY_TASK_ID}"
