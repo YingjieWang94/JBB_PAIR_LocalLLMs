@@ -1,0 +1,13 @@
+{
+  "run_id": "pair_20260121_215453_48fcbb",
+  "subset": "harmful",
+  "max_turns": 4,
+  "max_behaviors": null,
+  "guard_model_id": "ibm-granite/granite-guardian-3.1-2b",
+  "device": "cuda",
+  "behavior_pos": 100,
+  "turn": 0,
+  "history": [],
+  "current_behavior_id": null,
+  "updated_at": 1769032676.5732923
+}

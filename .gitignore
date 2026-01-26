@@ -1,0 +1,20 @@
+configs/secrets.env
+configs/secrets*.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# ML / HPC artifacts
+runs/
+artifacts/
+checkpoints/
+wandb/
+hf_cache/
+datasets/
+
+# OS / editor
+.vscode/
+.DS_Store

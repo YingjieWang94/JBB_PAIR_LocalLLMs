@@ -1,0 +1,34 @@
+run:
+  name: config1_pair_jbb
+  out_root: C:\Projects\jbb_pair
+  seed: 123
+  max_behaviors: 200           # set smaller for smoke test (e.g., 5)
+  split: harmful               # harmful | benign | both
+
+pair:
+  max_turns: 20
+  stop_on_success: true
+
+models:
+  attacker: Qwen2.5-14B-Instruct
+  target: Llama-2
+  guard: Llama-Guard-3-1B
+  escalation: Qwen2.5-7B-Instruct
+
+judge_policy:
+  always_on_guard: true
+  escalate_only_if_guard_unsafe: true
+
+generation:
+  attacker:
+    temperature: 0.8
+    top_p: 0.95
+    max_new_tokens: 256
+  target:
+    temperature: 0.7
+    top_p: 0.9
+    max_new_tokens: 512
+  escalation:
+    temperature: 0.0
+    top_p: 1.0
+    max_new_tokens: 128

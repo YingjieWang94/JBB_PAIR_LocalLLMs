@@ -1,0 +1,22 @@
+{
+  "run_id": "pair_local_20260121_234209_69f18e",
+  "profile": "local",
+  "subset": "harmful",
+  "max_behaviors": 1,
+  "budget_per_try": 2,
+  "guard_model_id": "ibm-granite/granite-guardian-3.1-2b",
+  "attacker_model_id": "Qwen/Qwen2.5-3B-Instruct",
+  "target_model_id": "meta-llama/Llama-2-7b-chat-hf",
+  "device": "cuda",
+  "guard_device": "cpu",
+  "dtype": "fp16",
+  "use_cache": false,
+  "seed": 1234,
+  "deterministic": true,
+  "reseed_each_step": false,
+  "behavior_pos": 1,
+  "turn": 0,
+  "history": [],
+  "current_behavior_id": null,
+  "updated_at": 1769039229.0725207
+}
