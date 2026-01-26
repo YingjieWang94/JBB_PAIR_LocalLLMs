@@ -36,14 +36,16 @@ which python
 nvidia-smi || true
 
 
+# Kill any cluster-injected/poisoned tokens
 unset HF_TOKEN
 unset HUGGINGFACEHUB_API_TOKEN
 unset HUGGINGFACE_HUB_TOKEN
 
-
-export HF_HOME="$HOME/.cache/huggingface"
+# Use the SAME HF_HOME as your interactive environment
+export HF_HOME="/users/yjwang/work/jbb_pair/hf_cache"
 export HF_HUB_CACHE="$HF_HOME/hub"
 export TRANSFORMERS_CACHE="$HF_HOME/hub"
+
 
 python -c "import os; print('HF_HOME=', os.environ.get('HF_HOME'));"
 python -c "from huggingface_hub import whoami; print('whoami:', whoami()['name'])"
