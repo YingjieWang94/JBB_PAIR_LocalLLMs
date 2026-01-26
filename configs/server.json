@@ -1,0 +1,6 @@
+{
+  "target_model_id": "meta-llama/Llama-2-7b-chat-hf",
+  "attacker_model_id": "lmsys/vicuna-13b-v1.5",
+  "guard_model_id": "meta-llama/Llama-Guard-3-8B",
+  "escalation_model_id": null
+}
