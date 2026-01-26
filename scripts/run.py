@@ -57,9 +57,18 @@ def load_hf_causal_lm_resident(
 
 
 def apply_profile_defaults(args: argparse.Namespace) -> argparse.Namespace:
-    # Keep as-is; repo uses this to set model IDs/endpoints by profile.
-    # (No changes needed here.)
+    # Load configs/<profile>.json if present, and fill args if they are missing.
+    cfg_path = ROOT / "configs" / f"{args.profile}.json"
+    if cfg_path.exists():
+        with cfg_path.open("r", encoding="utf-8") as f:
+            cfg = json.load(f)
+
+        for k in ("target_model_id", "attacker_model_id", "guard_model_id", "escalation_model_id"):
+            if getattr(args, k, None) in (None, "") and k in cfg:
+                setattr(args, k, cfg[k])
+
     return args
+
 
 
 def parse_args() -> argparse.Namespace:
