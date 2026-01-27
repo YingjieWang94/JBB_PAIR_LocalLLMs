@@ -10,6 +10,7 @@ if str(ROOT) not in sys.path:
 
 import argparse
 import gc
+import inspect
 import json
 import os
 import random
@@ -185,25 +186,100 @@ def apply_profile_defaults(args: argparse.Namespace) -> argparse.Namespace:
     if args.profile == "server":
         args.dtype = args.dtype or "bf16"
         args.use_cache = args.use_cache if args.use_cache is not None else False
-        args.max_gpu_mem_util = args.max_gpu_mem_util if args.max_gpu_mem_util is not None else 0.55
+
+        # For Qwen2.5-14B bf16 on L4 24GB, 0.55 often still OOMs at load-time peaks.
+        # Default to 0.40; you can override via --max-gpu-mem-util.
+        args.max_gpu_mem_util = args.max_gpu_mem_util if args.max_gpu_mem_util is not None else 0.40
+
         args.offload_dir = args.offload_dir or os.environ.get("HF_OFFLOAD_DIR", "/tmp/hf_offload")
+
         # CRITICAL: keep guard off GPU to avoid guard(8B)+target(8B) overlap on 24GB
         args.guard_device = args.guard_device or "cpu"
+
     elif args.profile == "local":
         args.dtype = args.dtype or "fp16"
         args.use_cache = args.use_cache if args.use_cache is not None else True
         args.max_gpu_mem_util = args.max_gpu_mem_util if args.max_gpu_mem_util is not None else 0.85
         args.offload_dir = args.offload_dir or os.environ.get("HF_OFFLOAD_DIR", "/tmp/hf_offload")
         args.guard_device = args.guard_device or args.device
+
     else:
         args.dtype = args.dtype or "bf16"
         if args.use_cache is None:
             args.use_cache = False
         if args.max_gpu_mem_util is None:
-            args.max_gpu_mem_util = 0.55
+            args.max_gpu_mem_util = 0.40
         args.offload_dir = args.offload_dir or os.environ.get("HF_OFFLOAD_DIR", "/tmp/hf_offload")
         args.guard_device = args.guard_device or "cpu"
+
     return args
+
+
+def init_guard_compat(
+    model_id: str,
+    device: str,
+    hf_token: Optional[str],
+    dtype: torch.dtype,
+) -> Any:
+    """
+    Instantiate LlamaGuard3 but only pass kwargs that its __init__ supports
+    (your repo rejected hf_token earlier).
+    """
+    sig = inspect.signature(LlamaGuard3.__init__)
+    params = sig.parameters
+
+    kwargs: Dict[str, Any] = {}
+    if "model_id" in params:
+        kwargs["model_id"] = model_id
+    elif "model" in params:
+        kwargs["model"] = model_id
+
+    if "device" in params:
+        kwargs["device"] = device
+
+    # Some implementations accept dtype
+    if "dtype" in params:
+        kwargs["dtype"] = dtype
+
+    # Token is optional; only pass if supported
+    if hf_token:
+        if "hf_token" in params:
+            kwargs["hf_token"] = hf_token
+        elif "token" in params:
+            kwargs["token"] = hf_token
+
+    return LlamaGuard3(**kwargs)
+
+
+def guard_classify_compat(guard: Any, attacker_prompt: str, target_response: str) -> Tuple[str, Any]:
+    """
+    Supports:
+      - guard.classify(x)             (single combined payload)
+      - guard.classify(x, y)          (prompt, response)
+      - returns (label, raw) OR label OR (label,)
+    """
+    sig = inspect.signature(guard.classify)
+    n_nonself = sum(1 for p in sig.parameters.values() if p.name != "self")
+
+    if n_nonself <= 1:
+        payload = (
+            "[USER PROMPT]\n"
+            f"{attacker_prompt}\n\n"
+            "[ASSISTANT RESPONSE]\n"
+            f"{target_response}"
+        )
+        res = guard.classify(payload)
+    else:
+        res = guard.classify(attacker_prompt, target_response)
+
+    if isinstance(res, tuple):
+        if len(res) >= 2:
+            return str(res[0]), res[1]
+        if len(res) == 1:
+            return str(res[0]), None
+        return "unknown", None
+
+    return str(res), None
 
 
 # -------------------------
@@ -272,6 +348,7 @@ def main() -> None:
     random.seed(args.seed)
     torch.manual_seed(args.seed)
 
+    # With `huggingface-cli login`, token is optional; keep for private models if env is set
     hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
 
     run_id = new_run_id(prefix="pair_local")
@@ -317,10 +394,15 @@ def main() -> None:
 
     writer = JsonlWriter(out_path)
 
-    # Keep guard on CPU for server profile to prevent VRAM overlap OOM
-    guard = LlamaGuard3(model_id=args.guard_model_id, device=args.guard_device)
-
     dtype = parse_dtype(args.dtype)
+
+    # Keep guard on CPU for server profile to prevent VRAM overlap OOM
+    guard = init_guard_compat(
+        model_id=args.guard_model_id,
+        device=args.guard_device,
+        hf_token=hf_token,
+        dtype=dtype,
+    )
 
     for bpos, beh in enumerate(shard, start=1):
         goal = beh.get("goal") or beh.get("prompt") or ""
@@ -421,8 +503,7 @@ def main() -> None:
             guard_raw = None
             try:
                 t0 = time.perf_counter()
-                guard_label, guard_raw = guard.classify(attacker_prompt, target_response)
-
+                guard_label, guard_raw = guard_classify_compat(guard, attacker_prompt, target_response)
                 timings["t_guard"] = time.perf_counter() - t0
             except Exception as e:
                 errors["guard"] = repr(e)
