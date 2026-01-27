@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 import os
 import torch
+import warnings
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from src.utils.hf_paths import resolve_local_model, local_only_enabled
@@ -28,75 +29,55 @@ class HFChatModel:
 
     def __init__(
         self,
-        model_id: str,
+        model_id_or_path: str,
+        dtype: torch.dtype = torch.bfloat16,
         device: str = "cuda",
-        dtype: Optional[torch.dtype] = None,
-        trust_remote_code: bool = True,
-        token: Optional[str] = None,
-    ):
-        self.model_id = model_id
+        hf_token: Optional[str] = None,
+    ) -> None:
+        self.model_id_or_path = model_id_or_path
+        self.dtype = dtype
         self.device = device
+        self.hf_token = hf_token
 
-        self.model_id = resolve_local_model(model_id)
         local_only = local_only_enabled()
-
-
-        if token is None:
-            token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
-
-
-
-
-        if dtype is None:
-            dtype = torch.bfloat16 if (device == "cuda" and torch.cuda.is_available()) else torch.float32
+        mid = resolve_local_model(model_id_or_path)
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            model_id,
+            mid,
+            token=hf_token,
             use_fast=True,
-            token=token,
-            trust_remote_code=trust_remote_code,
+            trust_remote_code=True,
             local_files_only=local_only,
-
         )
 
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            torch_dtype=dtype,
-            device_map="auto" if (device == "cuda" and torch.cuda.is_available()) else None,
-            token=token,
-            trust_remote_code=trust_remote_code,
-            local_files_only=local_only,
+        device_map = "auto" if device == "cuda" else None
 
+        self.model = AutoModelForCausalLM.from_pretrained(
+            mid,
+            token=hf_token,
+            torch_dtype=dtype,
+            device_map=device_map,
+            trust_remote_code=True,
+            local_files_only=local_only,
         )
         self.model.eval()
 
-        # Some Llama-like models need a pad token defined
-        if self.tokenizer.pad_token_id is None and self.tokenizer.eos_token_id is not None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-
     def _render_messages(self, messages: List[Dict[str, str]]) -> str:
-        """
-        Prefer tokenizer chat template if present; otherwise fall back.
-        messages: [{"role":"system|user|assistant", "content": "..."}]
-        """
         if hasattr(self.tokenizer, "apply_chat_template"):
             try:
                 return self.tokenizer.apply_chat_template(
-                    messages,
-                    tokenize=False,
-                    add_generation_prompt=True,
+                    messages, tokenize=False, add_generation_prompt=True
                 )
             except Exception:
                 pass
 
-        # Fallback format
-        chunks = []
+        chunks: List[str] = []
         for m in messages:
-            role = m.get("role", "user").upper()
+            role = m.get("role", "user")
             content = m.get("content", "")
-            chunks.append(f"{role}: {content}")
-        chunks.append("ASSISTANT:")
-        return "\n".join(chunks)
+            chunks.append(f"[{role.upper()}]\n{content}")
+        chunks.append("[ASSISTANT]\n")
+        return "\n\n".join(chunks)
 
     @torch.no_grad()
     def generate(self, messages: List[Dict[str, str]], gen: GenConfig) -> Dict[str, Any]:
@@ -105,6 +86,13 @@ class HFChatModel:
         uses_device_map = hasattr(self.model, "hf_device_map") and isinstance(getattr(self.model, "hf_device_map"), dict)
         if not uses_device_map:
             inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+        else:
+            # For sharded/offloaded models, keep inputs on CPU and suppress the known warning.
+            warnings.filterwarnings(
+                "ignore",
+                message=r"You are calling \.generate\(\) with the `input_ids` being on a device type different than your model's device\.",
+                category=UserWarning,
+            )
 
         do_sample = gen.temperature is not None and gen.temperature > 1e-6
 
@@ -112,82 +100,61 @@ class HFChatModel:
             **inputs,
             max_new_tokens=gen.max_new_tokens,
             do_sample=do_sample,
-            temperature=gen.temperature if do_sample else None,
-            top_p=gen.top_p if do_sample else None,
+            temperature=gen.temperature,
+            top_p=gen.top_p,
             repetition_penalty=gen.repetition_penalty,
-            pad_token_id=self.tokenizer.pad_token_id,
-            eos_token_id=self.tokenizer.eos_token_id,
         )
 
-        decoded = self.tokenizer.decode(out[0], skip_special_tokens=True)
-
-        # Try to strip the prompt prefix if it matches
-        completion = decoded[len(prompt):].strip() if decoded.startswith(prompt) else decoded.strip()
+        comp_ids = out[0][inputs["input_ids"].shape[-1] :]
+        comp = self.tokenizer.decode(comp_ids, skip_special_tokens=True)
 
         return {
             "prompt": prompt,
-            "text": completion,
+            "completion": comp,
+            "meta": {},
         }
 
-# ---------------------------------------------------------------------
-# Backwards-compatible helper (used by scripts/run.py in older versions)
-# ---------------------------------------------------------------------
+
 @torch.no_grad()
 def generate_completion(
-    tokenizer,
-    model,
-    prompt_or_messages,
-    *,
+    tokenizer: AutoTokenizer,
+    model: AutoModelForCausalLM,
+    messages: List[Dict[str, str]],
     temperature: float = 0.7,
     top_p: float = 0.9,
     max_new_tokens: int = 256,
     repetition_penalty: float = 1.0,
-) -> tuple[str, str, dict]:
-    """
-    Compatibility shim for older runner code.
-
-    Accepts either:
-      - prompt_or_messages: str
-      - prompt_or_messages: List[{"role": "...", "content": "..."}]
-
-    Returns: (rendered_prompt, completion_text, meta)
-    """
-
-    # Render chat messages if a list is provided
-    if isinstance(prompt_or_messages, str):
-        prompt = prompt_or_messages
+) -> tuple[str, str, Dict[str, Any]]:
+    # Render prompt using chat template when possible
+    if hasattr(tokenizer, "apply_chat_template"):
+        try:
+            prompt = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        except Exception:
+            prompt = None
     else:
-        messages = prompt_or_messages
-        if hasattr(tokenizer, "apply_chat_template"):
-            try:
-                prompt = tokenizer.apply_chat_template(
-                    messages,
-                    tokenize=False,
-                    add_generation_prompt=True,
-                )
-            except Exception:
-                # Fallback format
-                chunks = []
-                for m in messages:
-                    role = m.get("role", "user").upper()
-                    content = m.get("content", "")
-                    chunks.append(f"{role}: {content}")
-                chunks.append("ASSISTANT:")
-                prompt = "\n".join(chunks)
-        else:
-            chunks = []
-            for m in messages:
-                role = m.get("role", "user").upper()
-                content = m.get("content", "")
-                chunks.append(f"{role}: {content}")
-            chunks.append("ASSISTANT:")
-            prompt = "\n".join(chunks)
+        prompt = None
+
+    if prompt is None:
+        chunks: List[str] = []
+        for m in messages:
+            role = m.get("role", "user")
+            content = m.get("content", "")
+            chunks.append(f"[{role.upper()}]\n{content}")
+        chunks.append("[ASSISTANT]\n")
+        prompt = "\n\n".join(chunks)
 
     inputs = tokenizer(prompt, return_tensors="pt")
-
     uses_device_map = hasattr(model, "hf_device_map") and isinstance(getattr(model, "hf_device_map"), dict)
     if not uses_device_map:
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    else:
+        warnings.filterwarnings(
+            "ignore",
+            message=r"You are calling \.generate\(\) with the `input_ids` being on a device type different than your model's device\.",
+            category=UserWarning,
+        )
 
     do_sample = temperature is not None and temperature > 1e-6
 
@@ -195,21 +162,13 @@ def generate_completion(
         **inputs,
         max_new_tokens=max_new_tokens,
         do_sample=do_sample,
-        temperature=temperature if do_sample else None,
-        top_p=top_p if do_sample else None,
+        temperature=temperature,
+        top_p=top_p,
         repetition_penalty=repetition_penalty,
-        pad_token_id=tokenizer.pad_token_id,
-        eos_token_id=tokenizer.eos_token_id,
     )
 
-    decoded = tokenizer.decode(out[0], skip_special_tokens=True)
-    completion = decoded[len(prompt):].strip() if decoded.startswith(prompt) else decoded.strip()
+    comp_ids = out[0][inputs["input_ids"].shape[-1] :]
+    comp = tokenizer.decode(comp_ids, skip_special_tokens=True)
 
-    meta = {
-        "do_sample": do_sample,
-        "temperature": temperature,
-        "top_p": top_p,
-        "max_new_tokens": max_new_tokens,
-        "repetition_penalty": repetition_penalty,
-    }
-    return prompt, completion, meta
+    meta: Dict[str, Any] = {}
+    return prompt, comp, meta
