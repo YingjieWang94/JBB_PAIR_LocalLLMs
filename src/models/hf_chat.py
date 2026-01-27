@@ -35,7 +35,9 @@ class HFChatModel:
         self.model_id = model_id
         self.device = device
 
-        token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
+        if token is None:
+            token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
+
 
 
 
