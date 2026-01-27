@@ -37,6 +37,7 @@ export HF_HUB_DISABLE_TELEMETRY=1
 # === Repo ===
 REPO=/users/$USER/repos/JBB_PAIR_LocalLLMs
 cd "$REPO"
+export PYTHONPATH="$REPO:$PYTHONPATH"
 git rev-parse --abbrev-ref HEAD
 python -V
 
@@ -47,7 +48,7 @@ OUT="$PAIR_DATA_ROOT/generated/${RUN_ID}.jsonl"
 test -r "$MODEL_ROOT/meta-llama__Llama-3.1-8B-Instruct/config.json" || { echo "Model not readable on compute node at $MODEL_ROOT"; exit 3; }
 
 
-python scripts/run.py \
+python -u scripts/run.py \
   --profile server \
   --subset harmful \
   --max-behaviors 2 \
