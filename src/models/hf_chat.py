@@ -7,6 +7,8 @@ import os
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from src.utils.hf_paths import resolve_local_model, local_only_enabled
+
 
 @dataclass
 class GenConfig:
@@ -35,6 +37,10 @@ class HFChatModel:
         self.model_id = model_id
         self.device = device
 
+        self.model_id = resolve_local_model(model_id)
+        local_only = local_only_enabled()
+
+
         if token is None:
             token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
 
@@ -49,6 +55,8 @@ class HFChatModel:
             use_fast=True,
             token=token,
             trust_remote_code=trust_remote_code,
+            local_files_only=local_only,
+
         )
 
         self.model = AutoModelForCausalLM.from_pretrained(
@@ -57,6 +65,8 @@ class HFChatModel:
             device_map="auto" if (device == "cuda" and torch.cuda.is_available()) else None,
             token=token,
             trust_remote_code=trust_remote_code,
+            local_files_only=local_only,
+
         )
         self.model.eval()
 
