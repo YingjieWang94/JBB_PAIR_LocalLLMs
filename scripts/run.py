@@ -4,6 +4,9 @@ import argparse
 import gc
 import json
 import os
+
+# Reduce CUDA allocator fragmentation for long-running, load/unload-heavy jobs
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 import random
 import sys
 import time
@@ -58,6 +61,10 @@ def seed_jitter(base_seed: int, instance_idx: int, turn_idx: int, shard_idx: int
 def cuda_cleanup_strong() -> None:
     gc.collect()
     if torch.cuda.is_available():
+        try:
+            torch.cuda.synchronize()
+        except Exception:
+            pass
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
 
@@ -138,6 +145,9 @@ def load_hf_causal_lm_resident(
     dtype: torch.dtype,
     device: str,
     hf_token: Optional[str],
+    *,
+    use_cache: bool = False,
+    max_gpu_mem_util: float = 0.80,
 ) -> Tuple[Any, Any, float]:
     """
     Load a HF causal LM from local cache/model dir.
@@ -160,15 +170,33 @@ def load_hf_causal_lm_resident(
 
     device_map = "auto" if device == "cuda" else None
 
+    max_memory = None
+    if device == "cuda" and torch.cuda.is_available() and device_map is not None:
+        try:
+            total_gib = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            gpu_cap = max(1, int(total_gib * float(max_gpu_mem_util)))
+            max_memory = {0: f"{gpu_cap}GiB", "cpu": "128GiB"}
+        except Exception:
+            max_memory = None
+
     mdl = AutoModelForCausalLM.from_pretrained(
         mid,
         token=hf_token,
         torch_dtype=dtype,
         device_map=device_map,
+        max_memory=max_memory,
+        low_cpu_mem_usage=True,
         trust_remote_code=True,
         local_files_only=local_only,
     )
     mdl.eval()
+    # Control KV-cache to reduce peak VRAM (especially important with device_map offload)
+    try:
+        mdl.config.use_cache = bool(use_cache)
+        if getattr(mdl, "generation_config", None) is not None:
+            mdl.generation_config.use_cache = bool(use_cache)
+    except Exception:
+        pass
     return tok, mdl, time.perf_counter() - t0
 
 
@@ -221,7 +249,7 @@ def apply_profile_defaults(args: argparse.Namespace) -> argparse.Namespace:
 
     if args.profile == "server":
         args.dtype = args.dtype or "bf16"
-        args.use_cache = args.use_cache if args.use_cache is not None else True
+        args.use_cache = args.use_cache if args.use_cache is not None else False
 
         args.max_behaviors = args.max_behaviors if args.max_behaviors is not None else 20
         args.budget_per_try = args.budget_per_try if args.budget_per_try is not None else 20
@@ -441,7 +469,7 @@ def main() -> None:
             try:
                 if args.device == "cuda":
                     cuda_cleanup_strong()
-                tok_a, mdl_a, dt = load_hf_causal_lm_resident(args.attacker_model_id, dtype, args.device, hf_token)
+                tok_a, mdl_a, dt = load_hf_causal_lm_resident(args.attacker_model_id, dtype, args.device, hf_token, use_cache=bool(args.use_cache))
                 timings["t_load_attacker"] = dt
 
                 msgs_a = build_attacker_messages(goal=goal, history=state["history"], turn_idx=t)
@@ -472,7 +500,7 @@ def main() -> None:
             try:
                 if args.device == "cuda":
                     cuda_cleanup_strong()
-                tok_t, mdl_t, dt = load_hf_causal_lm_resident(args.target_model_id, dtype, args.device, hf_token)
+                tok_t, mdl_t, dt = load_hf_causal_lm_resident(args.target_model_id, dtype, args.device, hf_token, use_cache=bool(args.use_cache))
                 timings["t_load_target"] = dt
 
                 msgs_t = build_target_messages(attacker_prompt if attacker_prompt else "[EMPTY_ATTACKER_PROMPT]")
