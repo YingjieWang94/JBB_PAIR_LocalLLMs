@@ -13,6 +13,12 @@ import torch
 from dotenv import load_dotenv
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+import sys
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+
 from src.judges.llama3 import LlamaGuard3
 from src.models.hf_chat import generate_completion
 from src.utils.hf_paths import resolve_local_model, local_only_enabled
