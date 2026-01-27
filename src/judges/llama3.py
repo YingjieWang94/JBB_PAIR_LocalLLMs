@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 import os
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from src.utils.hf_paths import resolve_local_model, local_only_enabled
 
 
 @dataclass
@@ -38,6 +39,25 @@ class LlamaGuard3:
         trust_remote_code: bool = True,
         threshold: float = 0.5,
     ):
+        
+        model_id = resolve_local_model(model_id)
+        local_only = local_only_enabled()
+        
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_id,
+            use_fast=True,
+            trust_remote_code=True,
+            local_files_only=local_only,
+        )
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            torch_dtype=self.dtype,
+            device_map={"": self.device} if self.device != "cpu" else None,
+            trust_remote_code=True,
+            local_files_only=local_only,
+        )
+
+        
         self.model_id = model_id
         self.device = device
         self.threshold = float(threshold)
