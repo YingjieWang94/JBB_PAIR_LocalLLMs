@@ -26,6 +26,8 @@ export PAIR_DATA_ROOT=$SCRATCH_BASE/pair_data
 mkdir -p "$PAIR_DATA_ROOT"/generated
 mkdir -p "$HF_HOME" "$TRANSFORMERS_CACHE" "$HF_DATASETS_CACHE"
 
+test -w "$SCRATCH_BASE" || { echo "SCRATCH not writable: $SCRATCH_BASE"; exit 2; }
+
 
 # === Offline enforcement ===
 export TRANSFORMERS_OFFLINE=1
@@ -41,6 +43,9 @@ python -V
 # === Output ===
 RUN_ID="pair_demo_${SLURM_JOB_ID}"
 OUT="$PAIR_DATA_ROOT/generated/${RUN_ID}.jsonl"
+
+test -r "$MODEL_ROOT/meta-llama__Llama-3.1-8B-Instruct/config.json" || { echo "Model not readable on compute node at $MODEL_ROOT"; exit 3; }
+
 
 python scripts/run.py \
   --profile server \
