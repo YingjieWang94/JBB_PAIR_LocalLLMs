@@ -18,3 +18,12 @@ datasets/
 # OS / editor
 .vscode/
 .DS_Store
+
+data/generated/
+data/processed/*.arrow
+data/processed/*.parquet
+~/               # the accidental "~" folder
+logs/
+slurm-*.out
+slurm-*.err
+
