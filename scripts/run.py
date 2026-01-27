@@ -318,7 +318,7 @@ def main() -> None:
     writer = JsonlWriter(out_path)
 
     # Keep guard on CPU for server profile to prevent VRAM overlap OOM
-    guard = LlamaGuard3(model_id=args.guard_model_id, hf_token=hf_token, device=args.guard_device)
+    guard = LlamaGuard3(model_id=args.guard_model_id, device=args.guard_device)
 
     dtype = parse_dtype(args.dtype)
 
