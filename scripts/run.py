@@ -421,10 +421,8 @@ def main() -> None:
             guard_raw = None
             try:
                 t0 = time.perf_counter()
-                guard_label, guard_raw = guard.classify(
-                    user_prompt=attacker_prompt,
-                    assistant_response=target_response,
-                )
+                guard_label, guard_raw = guard.classify(attacker_prompt, target_response)
+
                 timings["t_guard"] = time.perf_counter() - t0
             except Exception as e:
                 errors["guard"] = repr(e)
