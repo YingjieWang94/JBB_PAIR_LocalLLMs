@@ -102,7 +102,9 @@ class HFChatModel:
     def generate(self, messages: List[Dict[str, str]], gen: GenConfig) -> Dict[str, Any]:
         prompt = self._render_messages(messages)
         inputs = self.tokenizer(prompt, return_tensors="pt")
-        inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+        uses_device_map = hasattr(self.model, "hf_device_map") and isinstance(getattr(self.model, "hf_device_map"), dict)
+        if not uses_device_map:
+            inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
 
         do_sample = gen.temperature is not None and gen.temperature > 1e-6
 
@@ -182,7 +184,10 @@ def generate_completion(
             prompt = "\n".join(chunks)
 
     inputs = tokenizer(prompt, return_tensors="pt")
-    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+
+    uses_device_map = hasattr(model, "hf_device_map") and isinstance(getattr(model, "hf_device_map"), dict)
+    if not uses_device_map:
+        inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
     do_sample = temperature is not None and temperature > 1e-6
 
