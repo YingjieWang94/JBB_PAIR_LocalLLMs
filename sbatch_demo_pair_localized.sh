@@ -10,14 +10,22 @@
 
 set -euo pipefail
 
-# === Storage (data2) ===
-export DATA2_BASE=/mnt/data2/users/$USER
-export MODEL_ROOT=$DATA2_BASE/models
-export HF_HOME=$DATA2_BASE/hf_cache
+# === Storage (compute-node writable) ===
+export HOME_BASE=/users/$USER
+export SCRATCH_BASE=$HOME_BASE/scratch
+
+# Read-only is fine for models; keep using data2 if it's visible on compute nodes
+export MODEL_ROOT=/mnt/data2/users/$USER/models
+
+# Put cache + outputs on scratch (writable everywhere)
+export HF_HOME=$SCRATCH_BASE/hf_cache
 export TRANSFORMERS_CACHE=$HF_HOME/transformers
 export HF_DATASETS_CACHE=$HF_HOME/datasets
-export PAIR_DATA_ROOT=$DATA2_BASE/pair_data
+export PAIR_DATA_ROOT=$SCRATCH_BASE/pair_data
+
 mkdir -p "$PAIR_DATA_ROOT"/generated
+mkdir -p "$HF_HOME" "$TRANSFORMERS_CACHE" "$HF_DATASETS_CACHE"
+
 
 # === Offline enforcement ===
 export TRANSFORMERS_OFFLINE=1
