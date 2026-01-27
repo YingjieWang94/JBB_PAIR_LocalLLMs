@@ -212,6 +212,26 @@ def apply_profile_defaults(args: argparse.Namespace) -> argparse.Namespace:
         args.guard_device = args.guard_device or "cpu"
     return args
 
+def load_json_config(path: str) -> Dict[str, Any]:
+    if not path:
+        return {}
+    cfg_path = Path(path)
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"--config not found: {cfg_path}")
+    with open(cfg_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def merge_model_ids(args: argparse.Namespace, cfg: Dict[str, Any]) -> None:
+    # Priority: CLI > config > env
+    if not args.target_model_id:
+        args.target_model_id = cfg.get("target_model_id") or os.environ.get("TARGET_MODEL_ID", "")
+    if not args.attacker_model_id:
+        args.attacker_model_id = cfg.get("attacker_model_id") or os.environ.get("ATTACKER_MODEL_ID", "")
+    if not args.guard_model_id:
+        args.guard_model_id = cfg.get("guard_model_id") or os.environ.get("GUARD_MODEL_ID", "")
+
+
 
 # -------------------------
 # main
@@ -220,6 +240,15 @@ def main() -> None:
     load_dotenv()
 
     p = argparse.ArgumentParser()
+
+    p.add_argument(
+    "--config",
+    type=str,
+    default=os.environ.get("PAIR_CONFIG", ""),
+    help="Path to JSON config with model ids (target_model_id, attacker_model_id, guard_model_id).",
+    )
+
+
     p.add_argument("--profile", type=str, default="server")
 
     p.add_argument("--subset", type=str, default="harmful")
@@ -258,6 +287,10 @@ def main() -> None:
 
     args = p.parse_args()
     args = apply_profile_defaults(args)
+
+    cfg = load_json_config(args.config)
+    merge_model_ids(args, cfg)
+
 
     if not args.target_model_id or not args.attacker_model_id or not args.guard_model_id:
         raise ValueError(
