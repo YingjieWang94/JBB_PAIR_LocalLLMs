@@ -37,7 +37,7 @@ export HF_HUB_DISABLE_TELEMETRY=1
 # === Repo ===
 REPO=/users/$USER/repos/JBB_PAIR_LocalLLMs
 cd "$REPO"
-export PYTHONPATH="$REPO:$PYTHONPATH"
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
 git rev-parse --abbrev-ref HEAD
 python -V
 
