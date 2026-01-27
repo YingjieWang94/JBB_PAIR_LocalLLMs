@@ -180,16 +180,21 @@ def load_hf_causal_lm_resident(
         trust_remote_code=True,
         local_files_only=local_only,
     )
+
+    # IMPORTANT: device_map must be "auto"/dict/None — NOT "cuda"
+    device_map = "auto" if device == "cuda" else None
+
     mdl = AutoModelForCausalLM.from_pretrained(
         mid,
         token=hf_token,
         torch_dtype=dtype,
-        device_map=device,
+        device_map=device_map,
         trust_remote_code=True,
         local_files_only=local_only,
     )
     mdl.eval()
     return tok, mdl, time.perf_counter() - t0
+
 
 
 def unload_model_strong(tok: Any, mdl: Any) -> None:
