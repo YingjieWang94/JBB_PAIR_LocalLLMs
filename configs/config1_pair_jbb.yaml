@@ -1,34 +1,47 @@
 run:
-  name: config1_pair_jbb
+  name: jbb_pair_vicuna13b_v15
   out_root: C:\Projects\jbb_pair
   seed: 123
-  max_behaviors: 200           # set smaller for smoke test (e.g., 5)
-  split: harmful               # harmful | benign | both
+  split: harmful         # harmful | benign | both
+  max_behaviors: 2000    # or 100 for paper JBB-Behaviors
+  shard:
+    num_shards: 1
+    shard_idx: 0
 
+data:
+  manifest_jsonl: C:\Projects\jbb_pair\data\behaviours\jbb_manifest.jsonl
+
+artifact:
+  provider: jailbreakbench
+  method: PAIR
+  model_name: vicuna-13b-v1.5
+
+# PAIR hyperparameters as stated in the JailbreakBench paper
+# (attacker model choice is irrelevant here because we replay artifacts)
 pair:
-  max_turns: 20
-  stop_on_success: true
+  max_depth_K: 3
+  n_streams_N: 30
+  attacker_temperature: 1.0
+  attacker_top_p: 0.9
 
 models:
-  attacker: Qwen2.5-14B-Instruct
-  target: Llama-2
-  guard: Llama-Guard-3-1B
-  escalation: Qwen2.5-7B-Instruct
+  # This is the model you will actually run forward passes on.
+  target_model_id: lmsys/vicuna-13b-v1.5
 
-judge_policy:
-  always_on_guard: true
-  escalate_only_if_guard_unsafe: true
+  # Judge: keep your local judge (you can swap later)
+  guard_model_id: meta-llama/Llama-Guard-3-8B
 
 generation:
-  attacker:
-    temperature: 0.8
-    top_p: 0.95
-    max_new_tokens: 256
   target:
     temperature: 0.7
     top_p: 0.9
     max_new_tokens: 512
-  escalation:
-    temperature: 0.0
-    top_p: 1.0
-    max_new_tokens: 128
+
+system:
+  profile: local       # local | server
+  device: cuda
+  dtype: fp16
+  use_cache: true
+  max_gpu_mem_util: 0.90
+  offload_dir: C:\Projects\jbb_pair\.hf_offload
+  fail_fast: false
