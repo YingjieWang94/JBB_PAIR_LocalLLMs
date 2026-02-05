@@ -1,37 +1,6 @@
 {
-  "profile": "server",
-
-  "models": {
-    "attacker_model_id": "mistralai/Mixtral-8x7B-Instruct-v0.1",
-    "target_model_id": "lmsys/vicuna-13b-v1.5",
-    "guard_model_id": "meta-llama/Llama-Guard-3-8B",
-    "escalation_model_id": null
-  },
-
-  "generation": {
-    "attacker": {
-      "temperature": 1.0,
-      "top_p": 0.9,
-      "max_new_tokens": 128
-    },
-    "target": {
-      "temperature": 0.7,
-      "top_p": 0.9,
-      "max_new_tokens": 128
-    }
-  },
-
-  "pair": {
-    "max_depth_K": 3,
-    "n_streams_N": 30
-  },
-
-  "system": {
-    "device": "cuda",
-    "dtype": "bf16",
-    "use_cache": true,
-    "max_gpu_mem_util": 0.35,
-    "offload_dir": "/users/yjwang/scratch/.hf_offload",
-    "fail_fast": true
-  }
+  "target_model_id": "lmsys/vicuna-13b-v1.5",
+  "attacker_model_id": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+  "guard_model_id": "meta-llama/Llama-Guard-3-8B",
+  "escalation_model_id": null
 }
