@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=pair-5k-b20
-#SBATCH --partition=gpu-l40s
+#SBATCH --partition=gpu-a-lowsmall
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
@@ -43,6 +43,6 @@ python -u scripts/run.py \
   --num-shards 100 \
   --shard-idx ${SLURM_ARRAY_TASK_ID} \
   --seed 0 \
-  --max-gpu-mem-util 0.5 \
+  --max-gpu-mem-util 0.85 \
   --fail-fast \
   2>&1 | tee "$OUT_BASE/shard_${SLURM_ARRAY_TASK_ID}.log"
