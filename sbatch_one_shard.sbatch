@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=pair5k
-#SBATCH --partition=gpu-l40s
+#SBATCH --partition=gpu-a-lowsmall
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
@@ -39,7 +39,7 @@ python -u scripts/run.py \
   --profile server \
   --config configs/server_mixtral_vicuna_5k.json \
   --subset harmful \
-  --max-gpu-mem-util 0.5 \
+  --max-gpu-mem-util 0.85 \
   --budget-per-try 20 \
   --num-shards "$NUM_SHARDS" \
   --shard-idx "$SHARD_IDX" \
