@@ -9,7 +9,7 @@
 #SBATCH --error=logs/pair5k_%j.err
 #SBATCH --requeue
 
-set -euo pipefail
+set -eo pipefail
 
 # ---------- user config ----------
 REPO="/users/yjwang/repos/JBB_PAIR_LocalLLMs"
@@ -18,14 +18,19 @@ NUM_SHARDS=100
 
 SHARD_IDX="${1:?need shard index (0..NUM_SHARDS-1)}"
 
+set +u
 source ~/.bashrc
+set -u
+
 conda activate jbb_pair
 
 export TOKENIZERS_PARALLELISM=false
 export HF_HUB_ENABLE_HF_TRANSFER=0
 export HF_HOME="/users/yjwang/scratch/hf"
+export HF_HUB_CACHE="/users/yjwang/scratch/hf/hub"
+export TRANSFORMERS_CACHE="/users/yjwang/scratch/hf/transformers"
 export HF_OFFLOAD_DIR="/users/yjwang/scratch/hf_offload"
-mkdir -p "$HF_HOME" "$HF_OFFLOAD_DIR"
+mkdir -p "$HF_HOME" "$HF_HUB_CACHE" "$TRANSFORMERS_CACHE" "$HF_OFFLOAD_DIR"
 
 cd "$REPO"
 export PAIR_DATA_ROOT="$REPO/data"
