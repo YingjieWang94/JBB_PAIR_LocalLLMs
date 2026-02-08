@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=pair5k
-#SBATCH --partition=gpu-l40s
+#SBATCH --partition=gpu-h100 # gpu-l40s gpu-a100-lowbig 
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
+#SBATCH --mem=200G
 #SBATCH --time=12:00:00
 #SBATCH --output=logs/pair5k_%j.out
 #SBATCH --error=logs/pair5k_%j.err
