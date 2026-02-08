@@ -34,3 +34,7 @@ slurm-*.err
 # Local / server-specific configs
 configs/*_local.yaml
 configs/*_server.yaml
+
+__pycache__/
+*.pyc
+
