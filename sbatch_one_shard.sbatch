@@ -9,7 +9,14 @@
 #SBATCH --error=logs/pair5k_%j.err
 #SBATCH --requeue
 
+echo "[START] $(date) host=$(hostname) jobid=${SLURM_JOB_ID:-NA} args: $@"
+pwd
+whoami
+
 set -eo pipefail
+set -x
+trap 'echo "[FATAL] line=$LINENO rc=$? cmd=$BASH_COMMAND" >&2' ERR
+
 
 # ---------- user config ----------
 REPO="/users/yjwang/repos/JBB_PAIR_LocalLLMs"
@@ -18,11 +25,13 @@ NUM_SHARDS=100
 
 SHARD_IDX="${1:?need shard index (0..NUM_SHARDS-1)}"
 
-set +u
-source ~/.bashrc
-set -u
+# Robust conda init for non-interactive batch shells (Barkla2 miniforge)
+source /opt/apps/pkg/tools/miniforge3/25.3.0_python3.12.10/etc/profile.d/conda.sh
+conda activate /users/yjwang/.conda/envs/jbb_pair
 
-conda activate jbb_pair
+python -V
+which python
+
 
 export TOKENIZERS_PARALLELISM=false
 export HF_HUB_ENABLE_HF_TRANSFER=0
