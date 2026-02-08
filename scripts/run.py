@@ -136,7 +136,7 @@ def load_hf_causal_lm_resident(
         try:
             total_gib = torch.cuda.get_device_properties(0).total_memory / (1024**3)
             cap_gib = max(1, int(total_gib * float(max_gpu_mem_util)))
-            max_memory = {0: f"{cap_gib}GiB", "cpu": "256GiB"}
+            max_memory = {0: f"{cap_gib}GiB", "cpu": "60GiB"} #256GiB
         except Exception:
             max_memory = None
 
@@ -150,6 +150,7 @@ def load_hf_causal_lm_resident(
         device_map=device_map,
         max_memory=max_memory,
         offload_folder=offload_folder,
+        offload_buffers=True,
         offload_state_dict=True,
         low_cpu_mem_usage=True,
         trust_remote_code=True,
