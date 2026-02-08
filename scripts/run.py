@@ -136,7 +136,11 @@ def load_hf_causal_lm_resident(
         try:
             total_gib = torch.cuda.get_device_properties(0).total_memory / (1024**3)
             cap_gib = max(1, int(total_gib * float(max_gpu_mem_util)))
+<<<<<<< Updated upstream
             max_memory = {0: f"{cap_gib}GiB", "cpu": "256GiB"} #256GiB drop to 60 if OOM
+=======
+            max_memory = {0: f"{cap_gib}GiB", "cpu": "50GiB"} #256GiB
+>>>>>>> Stashed changes
         except Exception:
             max_memory = None
 
