@@ -77,6 +77,17 @@ def unload_model_strong(tok: Any, mdl: Any) -> None:
     cuda_cleanup_strong()
 
 
+def print_gpu_mem(prefix: str) -> None:
+    if torch.cuda.is_available():
+        try:
+            free_bytes, total_bytes = torch.cuda.mem_get_info(0)
+            free_gib = free_bytes / (1024**3)
+            total_gib = total_bytes / (1024**3)
+            print(f"[{prefix}] gpu_free={free_gib:.2f}GiB gpu_total={total_gib:.2f}GiB")
+        except Exception as e:
+            print(f"[{prefix}] gpu mem info unavailable: {e}")
+
+
 def load_json_config(path: str) -> Dict[str, Any]:
     if not path:
         return {}
@@ -106,6 +117,10 @@ def load_hf_causal_lm_resident(
     max_gpu_mem_util: float,
     offload_dir: str,
 ) -> Tuple[Any, Any, float]:
+    """
+    CUDA: use device_map + max_memory cap + CPU offload to prevent load-time OOM.
+    The cap is based on CURRENTLY FREE VRAM, not total VRAM.
+    """
     t0 = time.perf_counter()
     local_only = local_only_enabled()
     mid = resolve_local_model(model_id_or_path)
@@ -124,11 +139,25 @@ def load_hf_causal_lm_resident(
 
     if device == "cuda" and torch.cuda.is_available():
         device_map = "balanced_low_0"
+
         try:
-            total_gib = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-            cap_gib = max(1, int(total_gib * float(max_gpu_mem_util)))
+            free_bytes, total_bytes = torch.cuda.mem_get_info(0)
+            free_gib = free_bytes / (1024**3)
+            total_gib = total_bytes / (1024**3)
+
+            # Leave absolute headroom for load spikes and generation buffers.
+            usable_gib = max(1.0, free_gib - 1.5)
+            cap_gib = max(1, int(usable_gib * float(max_gpu_mem_util)))
+
+            print(
+                f"[LOAD] model={mid} "
+                f"gpu_free={free_gib:.2f}GiB gpu_total={total_gib:.2f}GiB "
+                f"max_gpu_mem_util={float(max_gpu_mem_util):.2f} cap_gib={cap_gib}"
+            )
+
             max_memory = {0: f"{cap_gib}GiB", "cpu": "256GiB"}
-        except Exception:
+        except Exception as e:
+            print(f"[WARN] torch.cuda.mem_get_info failed: {e}")
             max_memory = None
 
         offload_folder = offload_dir or os.environ.get("HF_OFFLOAD_DIR", "/tmp/hf_offload")
@@ -183,7 +212,7 @@ def apply_profile_defaults(args: argparse.Namespace) -> argparse.Namespace:
     if args.profile == "server":
         args.dtype = args.dtype or "bf16"
         args.use_cache = args.use_cache if args.use_cache is not None else False
-        args.max_gpu_mem_util = args.max_gpu_mem_util if args.max_gpu_mem_util is not None else 0.40
+        args.max_gpu_mem_util = args.max_gpu_mem_util if args.max_gpu_mem_util is not None else 0.25
         args.offload_dir = args.offload_dir or os.environ.get("HF_OFFLOAD_DIR", "/tmp/hf_offload")
         args.guard_device = args.guard_device or "cpu"
 
@@ -199,7 +228,7 @@ def apply_profile_defaults(args: argparse.Namespace) -> argparse.Namespace:
         if args.use_cache is None:
             args.use_cache = False
         if args.max_gpu_mem_util is None:
-            args.max_gpu_mem_util = 0.40
+            args.max_gpu_mem_util = 0.25
         args.offload_dir = args.offload_dir or os.environ.get("HF_OFFLOAD_DIR", "/tmp/hf_offload")
         args.guard_device = args.guard_device or "cpu"
 
@@ -307,6 +336,13 @@ def shard_list(items: List[Dict[str, Any]], num_shards: int, shard_idx: int) -> 
     start = shard_idx * shard_size
     end = min(total, start + shard_size)
     return items[start:end]
+
+
+def maybe_shuffle_behaviors(behaviors: List[Dict[str, Any]], seed: int) -> List[Dict[str, Any]]:
+    out = list(behaviors)
+    rng = random.Random(seed)
+    rng.shuffle(out)
+    return out
 
 
 # -------------------------
@@ -427,6 +463,9 @@ def main() -> None:
     print(f"Models -> attacker={args.attacker_model_id} | target={args.target_model_id} | guard={args.guard_model_id}")
     print(f"max_gpu_mem_util -> {args.max_gpu_mem_util} | offload_dir -> {args.offload_dir} | use_cache -> {args.use_cache}")
 
+    if torch.cuda.is_available():
+        print_gpu_mem("STARTUP")
+
     rows = load_jsonl_rows(manifest)
 
     behaviors: List[Dict[str, Any]] = []
@@ -435,6 +474,8 @@ def main() -> None:
         if args.subset_filter != "all" and subset != args.subset_filter:
             continue
         behaviors.append(obj)
+
+    behaviors = maybe_shuffle_behaviors(behaviors, seed=args.seed)
 
     if args.max_behaviors and args.max_behaviors > 0:
         behaviors = behaviors[: args.max_behaviors]
@@ -485,6 +526,7 @@ def main() -> None:
             try:
                 if args.device == "cuda":
                     cuda_cleanup_strong()
+                    print_gpu_mem("BEFORE_ATTACKER_LOAD")
 
                 tok_a, mdl_a, dt_load = load_hf_causal_lm_resident(
                     args.attacker_model_id,
@@ -523,6 +565,7 @@ def main() -> None:
             try:
                 if args.device == "cuda":
                     cuda_cleanup_strong()
+                    print_gpu_mem("BEFORE_TARGET_LOAD")
 
                 tok_t, mdl_t, dt_load = load_hf_causal_lm_resident(
                     args.target_model_id,
