@@ -17,8 +17,13 @@ hostname
 echo "SLURM_JOB_ID=${SLURM_JOB_ID:-}"
 echo "SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID:-}"
 echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}"
+
+echo "===== GPU INFO ====="
 nvidia-smi || true
-echo "==============================="
+
+echo "===== GPU MEMORY BEFORE RUN ====="
+nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv
+echo "================================="
 
 source ~/.bashrc
 conda activate jbb_pair
@@ -27,9 +32,11 @@ export TOKENIZERS_PARALLELISM=false
 export HF_HUB_ENABLE_HF_TRANSFER=0
 export PYTHONUNBUFFERED=1
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
 export HF_HOME="/users/yjwang/scratch/hf"
-export HF_OFFLOAD_DIR="/users/yjwang/scratch/hf_offload"
+export HF_OFFLOAD_DIR="/users/yjwang/scratch/hf_offload_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+
 mkdir -p "$HF_HOME" "$HF_OFFLOAD_DIR"
 
 REPO="/users/yjwang/repos/JBB_PAIR_LocalLLMs"
@@ -40,6 +47,8 @@ mkdir -p logs
 OUT_BASE="/users/yjwang/scratch/pair_data/generated/real_2k_mixed_b20"
 mkdir -p "$OUT_BASE"
 export PAIR_OUT_DIR="$OUT_BASE"
+
+echo "===== STARTING PYTHON ====="
 
 python -u scripts/run_2k_mixed.py \
   --profile server \
