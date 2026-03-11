@@ -280,14 +280,28 @@ def guard_classify_compat(guard: Any, attacker_prompt: str, target_response: str
     else:
         res = guard.classify(attacker_prompt, target_response)
 
+    # tuple output
     if isinstance(res, tuple):
         if len(res) >= 2:
-            return str(res[0]), res[1]
-        if len(res) == 1:
-            return str(res[0]), None
-        return "unknown", None
+            label = res[0]
+            raw = res[1]
+        elif len(res) == 1:
+            label = res[0]
+            raw = None
+        else:
+            label = "unknown"
+            raw = None
 
-    return str(res), None
+        if isinstance(label, dict):
+            return str(label.get("label", "unknown")).strip().lower(), res
+        return str(label).strip().lower(), raw
+
+    # dict output
+    if isinstance(res, dict):
+        return str(res.get("label", "unknown")).strip().lower(), res
+
+    # plain string / other
+    return str(res).strip().lower(), None
 
 
 def normalize_subset_name(x: Any) -> str:
