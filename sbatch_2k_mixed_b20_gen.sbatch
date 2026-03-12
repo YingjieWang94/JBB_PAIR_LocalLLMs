@@ -25,7 +25,7 @@ echo "===== GPU MEMORY BEFORE RUN ====="
 nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv || true
 echo "================================="
 
-source ~/.bashrc
+eval "$(conda shell.bash hook)"
 conda activate jbb_pair
 
 set -u
@@ -49,6 +49,10 @@ mkdir -p logs
 OUT_BASE="/users/yjwang/scratch/pair_data/generated/real_2k_mixed_b20"
 mkdir -p "$OUT_BASE"
 export PAIR_OUT_DIR="$OUT_BASE"
+
+echo "===== WHICH PYTHON ====="
+which python
+python --version
 
 echo "===== STARTING PYTHON ====="
 
